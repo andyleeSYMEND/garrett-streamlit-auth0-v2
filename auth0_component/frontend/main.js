@@ -217,5 +217,16 @@ async function onRender(event) {
   Streamlit.setFrameHeight()
 }
 
+Streamlit.events.addEventListener("fetchScopedToken", async (event) => {
+  const { scopeType, organizationId } = event.detail;
+  try {
+    const scopedToken = await getScopedToken(scopeType, organizationId);
+    Streamlit.setComponentValue({ scopedToken, scopeType });
+  } catch (error) {
+    console.error("Failed to fetch scoped token:", error);
+    Streamlit.setComponentValue(null);
+  }
+});
+
 Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender)
 Streamlit.setComponentReady()
