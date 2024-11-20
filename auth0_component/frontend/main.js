@@ -18,6 +18,11 @@ let audience
 let debug_logs
 let auth0
 
+let masterToken = null;
+let platformToken = null;
+let orgToken = null;
+let refreshToken = null;
+
 const getOriginUrl = () => {
   // Detect if you're inside an iframe
   if (window.parent !== window) {
@@ -40,11 +45,39 @@ const createClient = async () => {
     redirect_uri: getOriginUrl(),
     audience: audience,
     useRefreshTokens: true,
-    cacheLocation: "localstorage",
+    cacheLocation: "localstorage"
   });
 }
 
-const logout = async () => {
+const getScopedToken = async (scopeType, organizationId = null) => {
+  try {
+    const scope = 
+      scopeType === "master"
+        ? "openid profile email offline_access mode:context context:tbd"
+        : scopeType === "platform"
+        ? "openid profile email offline_access mode:context context:platform"
+        : scopeType === "organization" && organizationId
+        ? `openid profile email offline_access mode:context context:${organizationId}`
+        : null;
+
+    if (!scope) {
+      throw new Error(`Invalid scope type or missing organization ID for scopeType: ${scopeType}`);
+    }
+
+    const token = await auth0.getTokenSilently({
+      audience: audience,
+      scope: scope,
+    });
+
+    console.log(`Token for ${scopeType} scope:`, token);
+    return token;
+  } catch (error) {
+    console.error(`Error fetching scoped token for ${scopeType}:`, error);
+    throw error;
+  }
+};
+
+  const logout = async () => {
 
   await createClient();
 
@@ -58,77 +91,54 @@ const logout = async () => {
 }
 
 const login = async () => {
-
-  if (debug_logs) {
-    console.log(
-      "Starting session\n" +
-      "Configuration:\n" +
-      "  Client Id:" + client_id + "\n" +
-      "  Domain:", domain + "\n" +
-      "  Audience:", audience + "\n" +
-      "  Callback urls set to: ", getOriginUrl() + "\n"
-    );
-  }
-
-  button.textContent = 'working...'
+  button.textContent = "working...";
   await createClient();
 
   try {
     await auth0.loginWithPopup();
-    errorNode.textContent = ''
+    errorNode.textContent = "";
+  } catch (err) {
+    console.error("Login failed:", err);
+    errorNode.textContent = `Popup blocked, please try again or enable popups` + String.fromCharCode(160);
+    return;
   }
-  catch (err) {
-    console.log(err)
-    errorNode.textContent = `Popup blocked, please try again or enable popups` + String.fromCharCode(160)
-    return
-  }
-  const user = await auth0.getUser();
-
-  if (debug_logs) {
-    console.log("user:", user)
-  }
-
-  let token = false
 
   try {
+    const user = await auth0.getUser();
 
-    token = await auth0.getTokenSilently({
+    // Fetch tokens for different scopes
+    const masterToken = await getScopedToken("master");
+    const platformToken = await getScopedToken("platform");
+    const orgToken = await getScopedToken("organization", "your-organization-id");
+
+    // Get refresh token
+    const refreshToken = await auth0.getTokenSilently({
       audience: audience,
-      scope: "read:current_user",
+      scope: "offline_access",  // Ensure refresh tokens are granted
     });
-  }
-  catch (error) {
-    if (error.error === 'consent_required' || error.error === 'login_required') {
-      if (debug_logs) {
-        console.log('asking user for permission to their profile')
-      }
-      token = await auth0.getTokenWithPopup({
-        audience: audience,
-        scope: "read:current_user",
-      });
-      if (debug_logs) {
-        console.log("token:", token)
-      }
+
+    const userCopy = {
+      ...user,
+      masterToken,
+      platformToken,
+      orgToken,
+      refreshToken,
+    };
+
+    if (debug_logs) {
+      console.log("Fetched user and tokens:", userCopy);
     }
-    else {
-      console.error(error)
-      Streamlit.setComponentValue(null)
-      button.textContent = "Login"
-      return
-    }
+
+    Streamlit.setComponentValue(userCopy);
+  } catch (error) {
+    console.error("Failed to get tokens:", error);
+    Streamlit.setComponentValue(null);
   }
 
-  let userCopy = JSON.parse(JSON.stringify(user));
-  userCopy.token = token
-  if (debug_logs) {
-    console.log("user:", userCopy);
-  }
-
-  Streamlit.setComponentValue(userCopy)
-  button.textContent = "Logout"
-  button.removeEventListener('click', login)
-  button.addEventListener('click', logout)
-}
+  button.textContent = "Logout";
+  button.removeEventListener("click", login);
+  button.addEventListener("click", logout);
+};
 
 const resume = async () => {
   if (debug_logs) {
@@ -137,49 +147,58 @@ const resume = async () => {
       "Configuration:\n" +
       "  Client Id:" + client_id + "\n" +
       "  Domain:", domain + "\n" +
-    "  Audience:", audience + "\n" +
-    "  Callback urls set to: ", getOriginUrl() + "\n"
+      "  Audience:", audience + "\n" +
+      "  Callback urls set to: ", getOriginUrl() + "\n"
     );
   }
 
-  button.textContent = 'working...'
+  button.textContent = "working...";
   await createClient();
 
-  const user = await auth0.getUser() || {};
-  
-  if (debug_logs) {
-    console.log("user", user);
+  if (await auth0.isAuthenticated()) {
+    const user = await auth0.getUser();
+
+    try {
+      // Fetch scoped tokens during session resumption
+      const masterToken = await getScopedToken("master");
+      const platformToken = await getScopedToken("platform");
+
+      // If multiple organization IDs, loop or dynamically fetch the active one
+      const organizationId = "your-organization-id"; // Replace with dynamic logic if applicable
+      const orgToken = await getScopedToken("organization", organizationId);
+
+      const refreshToken = await auth0.getTokenSilently({
+        audience: audience,
+        scope: "offline_access",
+      });
+
+      const userCopy = {
+        ...user,
+        masterToken,
+        platformToken,
+        orgToken,
+        refreshToken,
+      };
+
+      if (debug_logs) {
+        console.log("Resumed user data with tokens:", userCopy);
+      }
+
+      Streamlit.setComponentValue(userCopy);
+    } catch (error) {
+      console.error("Failed to resume session and fetch tokens:", error);
+      Streamlit.setComponentValue(null);
+    }
+
+    button.textContent = "Logout";
+    button.removeEventListener("click", login);
+    button.addEventListener("click", logout);
+  } else {
+    button.textContent = "Login";
+    button.removeEventListener("click", logout);
+    button.addEventListener("click", login);
   }
-
-  let token = false
-
-  try {
-    token = await auth0.getTokenSilently({
-      audience: audience,
-      scope: "read:current_user",
-    });
-
-  }
-  catch (error) {
-    console.error(error)
-    Streamlit.setComponentValue(null)
-    button.textContent = "Login"
-    return
-  }
-
-  let userCopy = JSON.parse(JSON.stringify(user));
-  userCopy.token = token
-  if (debug_logs) {
-    console.log("user:", userCopy);
-  }
-
-  Streamlit.setComponentValue(userCopy)
-  button.textContent = "Logout"
-  button.removeEventListener('click', login)
-  button.addEventListener('click', logout)
-}
-
-button.addEventListener('click', login)
+};
 
 async function onRender(event) {
   const data = event.detail
