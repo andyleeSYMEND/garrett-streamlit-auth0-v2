@@ -111,8 +111,6 @@ const login = async () => {
     const userCopy = {
       ...user,
       masterToken,
-      platformToken,
-      orgToken,
       refreshToken,
     };
 
@@ -164,9 +162,7 @@ const resume = async () => {
       const userCopy = {
         ...user,
         masterToken,
-        platformToken,
-        orgToken,
-        refreshToken,
+        refreshToken
       };
 
       if (debug_logs) {
