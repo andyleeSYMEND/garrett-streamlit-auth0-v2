@@ -24,7 +24,6 @@ let orgToken = null;
 let refreshToken = null;
 
 const getOriginUrl = () => {
-  // Detect if you're inside an iframe
   if (window.parent !== window) {
     const currentIframeHref = new URL(document.location.href)
     const urlOrigin = currentIframeHref.origin
@@ -69,10 +68,9 @@ const getScopedToken = async (scopeType, organizationId = null) => {
       scope: scope,
     });
 
-    // Request refresh token for this scope
     const refreshToken = await auth0.getTokenSilently({
       audience: audience,
-      scope: "offline_access",  // This ensures refresh tokens are fetched
+      scope: "offline_access",  
     });
 
     console.log(`Token for ${scopeType} scope:`, token);
@@ -101,15 +99,13 @@ const login = async () => {
   try {
     const user = await auth0.getUser();
 
-    // Fetch tokens for different scopes
     const masterToken = await getScopedToken("master");
     const platformToken = await getScopedToken("platform");
     const orgToken = await getScopedToken("organization", "your-organization-id");
 
-    // Get refresh token
     const refreshToken = await auth0.getTokenSilently({
       audience: audience,
-      scope: "offline_access",  // Ensure refresh tokens are granted
+      scope: "offline_access",  
     });
 
     const userCopy = {
@@ -154,12 +150,10 @@ const resume = async () => {
     const user = await auth0.getUser();
 
     try {
-      // Fetch scoped tokens during session resumption
       const masterToken = await getScopedToken("master");
       const platformToken = await getScopedToken("platform");
 
-      // If multiple organization IDs, loop or dynamically fetch the active one
-      const organizationId = "your-organization-id"; // Replace with dynamic logic if applicable
+      const organizationId = "your-organization-id"; 
       const orgToken = await getScopedToken("organization", organizationId);
 
       const refreshToken = await auth0.getTokenSilently({
@@ -203,14 +197,13 @@ async function onRender(event) {
   audience = data.args["audience"]
   debug_logs = data.args["debug_logs"]
 
-  if (!auth0) { // first time or page refreshed
+  if (!auth0) {
     await createClient();
-    if (await auth0.isAuthenticated()) { // page refreshed
+    if (await auth0.isAuthenticated()) { 
       await resume();
     }
   } else {
-    // streamlit rerendered
-    if (!await auth0.isAuthenticated()) { // sig expired
+    if (!await auth0.isAuthenticated()) { 
 
         button.removeEventListener('click', login);
         button.removeEventListener('click', logout);
