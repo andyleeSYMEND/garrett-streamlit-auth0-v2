@@ -51,7 +51,7 @@ const createClient = async () => {
 
 const getScopedToken = async (scopeType, organizationId = null) => {
   try {
-    const scope = 
+    const scope =
       scopeType === "master"
         ? "openid profile email offline_access mode:context context:tbd"
         : scopeType === "platform"
@@ -69,26 +69,21 @@ const getScopedToken = async (scopeType, organizationId = null) => {
       scope: scope,
     });
 
+    // Request refresh token for this scope
+    const refreshToken = await auth0.getTokenSilently({
+      audience: audience,
+      scope: "offline_access",  // This ensures refresh tokens are fetched
+    });
+
     console.log(`Token for ${scopeType} scope:`, token);
-    return token;
+    console.log(`Refresh token for ${scopeType} scope:`, refreshToken);
+
+    return { token, refreshToken };
   } catch (error) {
     console.error(`Error fetching scoped token for ${scopeType}:`, error);
     throw error;
   }
 };
-
-  const logout = async () => {
-
-  await createClient();
-
-  auth0.logout({ returnTo: getOriginUrl() })
-
-
-  Streamlit.setComponentValue(null)
-  button.textContent = "Login"
-  button.removeEventListener('click', logout)
-  button.addEventListener('click', login)
-}
 
 const login = async () => {
   button.textContent = "working...";
