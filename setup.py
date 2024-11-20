@@ -10,7 +10,7 @@ setuptools.setup(
     description="",
     long_description="",
     long_description_content_type="text/plain",
-    url="https://github.com/chris-garrett/garrett-streamlit-auth0",
+    url="https://github.com/andyleeSYMEND/garrett-streamlit-auth0-v2",
     packages=setuptools.find_packages(),
     include_package_data=True,
     classifiers=[],
